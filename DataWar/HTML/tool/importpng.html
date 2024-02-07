@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>把一张图片导入为六边形地块数据</title>
+</head>
+<body>
+<div id="div_allbase">
+    <canvas style="width: 512px;height: 512px" width="512" height="512" id="can_pic">
+
+    </canvas>
+</div>
+</body>
+<script>
+    var canvas=document.getElementById("can_pic");
+    window.onload=loadImage;
+    var part_mapx=50,part_mapy=50;
+    var width_grid,height_grid;
+    var map_landtype={};
+    map_landtype.grass={color:{r:112,g:146,b:46},key:"grass"};
+    map_landtype.stone={color:{r:82,g:81,b:74},key:"stone"};
+    map_landtype.lake={color:{r:93,g:143,b:180},key:"lake"};
+    map_landtype.yulin={color:{r:33,g:68,b:44},key:"yulin"};
+    map_landtype.city={color:{r:147,g:151,b:140},key:"city"};
+    map_landtype.village={color:{r:133,g:130,b:71},key:"village"};
+
+    function loadImage()
+    {
+        var context=canvas.getContext("2d");
+        var img=document.createElement("img");
+        img.src="../../ASSETS/IMAGE/MAP/map1.png";
+        img.onload=function()
+        {//在图片加载完毕后才可以在canvas里绘制
+            canvas.style.width=img.width+"px";//重调canvas大小
+            canvas.width=img.width;
+            canvas.style.height=img.height+"px";
+            canvas.height=img.height;
+            width_grid=(canvas.width/part_mapx)/1.5;
+            height_grid=(canvas.height/part_mapy)/2;
+
+            context.drawImage(img,0,0);
+            //var imagedata_temp=context.getImageData(0,0,512,512);//规定地貌块纹理图片的宽高是512
+            //var data=imagedata_temp.data;
+            //var len=data.length;
+            var arr1=[];
+            for(var i=0;i<part_mapx;i++)//对于每一列！！
+            {
+                var arr2=[];
+                if(i%2==0)
+                {
+                    for(var j=0;j<part_mapy;j++)
+                    {
+                        var imagedata_temp=context.getImageData(i*width_grid*1.5,j*2*height_grid+height_grid,width_grid*2,height_grid*2);
+                        var key=maxLike(imagedata_temp.data);
+                        arr2.push(key);
+
+                    }
+                }
+                else {
+                    for(var j=0;j<=part_mapy;j++)
+                    {
+                        var imagedata_temp=context.getImageData(i*width_grid*1.5,j*2*height_grid,width_grid*2,height_grid*2);
+                        var key=maxLike(imagedata_temp.data);
+                        arr2.push(key);
+                    }
+                }
+                arr1.push(arr2);
+            }
+            console.log(JSON.stringify(arr1));
+        }
+
+    }
+    function maxLike(data){
+        for(var key in map_landtype)
+        {
+            var landtype=map_landtype[key];
+            landtype.count=0;
+        }
+        var len=data.length;
+        for(var i=0;i<len;i+=4)//对于卷积核内的每个像素
+        {
+            var r=data[i];
+            var g=data[i+1];
+            var b=data[i+2];
+            var a=data[i+3];
+
+            for(var key in map_landtype)
+            {
+                var landtype=map_landtype[key];
+                if(landtype.color.r==r&&landtype.color.g==g&&landtype.color.b==b)
+                {
+                    landtype.count++;
+                    break;
+                }
+
+            }
+        }
+        var max_type={count:-1};
+        for(var key in map_landtype)
+        {
+            var landtype=map_landtype[key];
+            if(landtype.count>max_type.count)
+            {
+                max_type=landtype;
+            }
+        }
+        return max_type.key;
+    }
+</script>
+</html>

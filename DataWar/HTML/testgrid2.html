@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>测试六角形单元格-按照某种地形平铺-随机选择地形</title>
+    <link href="../CSS/simple.css" rel="stylesheet">
+    <script src="../JS/LIB6/babylon.js"></script>
+    <script src="../JS/LIB6/babylon.inspector.bundle.js"></script>
+    <script src="../JS/LIB6/earcut.min.js"></script>
+    <script src="../JS/LIB/meshwriter_stsong.js"></script>
+    <script src="../JS/LIB6/babylon.gui.min.js"></script>
+    <script src="../JS/LIB/newland.js"></script>
+    <script src="GuiControl.js"></script>
+    <script src="MyMaterial2.js"></script>
+    <script src="createGrids.js"></script>
+</head>
+<body>
+    <canvas id="renderCanvas" touch-action="none"></canvas>
+    <div id="fps"></div>
+</body>
+<script>
+    const canvas = document.getElementById("renderCanvas"); // Get the canvas element 获取画布标签
+    const engine = new BABYLON.Engine(canvas, true); // Generate the BABYLON 3D engine 建立BABYLON 3D引擎
+    var divFps = document.getElementById("fps");
+
+    var scene=null;
+    var advancedTexture=null;
+    var can_temp=document.createElement("canvas");
+    can_temp.width=800;
+    can_temp.height=800;
+    var context_temp=can_temp.getContext("2d");
+    context_temp.font="bold 100px monospace";
+    var plan_temp,Writer;
+
+    window.onload=beforewebGL;
+    function beforewebGL()
+    {
+        webGLStart();
+
+    }
+
+    var camera,mesh_camera,rate_window,pos_camera0,rot_camera0,global_panel2,global_panel_text;
+    var map_mat={};
+
+    function webGLStart()
+    {
+        scene =createScene();
+        createGrids();
+        MyBeforeRender();
+        //scene.debugLayer.show();
+    }
+    const createScene =  () => {
+        scene = new BABYLON.Scene(engine);
+        //plan_temp=new BABYLON.Mesh.CreatePlane("plan_temp", 80);
+        Writer = BABYLON.MeshWriter(scene, {scale:1,defaultFont:"stsong"});
+        initGuiControl();
+        initMaterial();
+        mesh_camera=new BABYLON.Mesh("mesh_camera",scene);
+        //人类的实际视界是一个弧面，但opengl的虚拟视界是平截锥体！！！！-》所以视界边缘的单元格并不会因为距离远而显得小
+        camera = new BABYLON.UniversalCamera("camera1", new BABYLON.Vector3(width_grid*1.5*part_mapx/2, 100, -height_grid*part_mapy/2), scene);
+        camera.rotation.x=Math.PI/2//*0.31;
+        scene.activeCamera=camera;
+        camera.attachControl(canvas, true);
+        camera.minz=0.01;
+        camera.speed=10;
+
+        pos_camera0=camera.position.clone();
+        rot_camera0=camera.rotation.clone();
+        var sizex=engine._gl.drawingBufferWidth;
+        var sizey=engine._gl.drawingBufferHeight;
+        rate_window=sizex/sizey;
+        //camera.mode = BABYLON.Camera.ORTHOGRAPHIC_CAMERA;
+        camera.orthoLeft = 0-50*rate_window;
+        camera.orthoRight = 0+50*rate_window;
+        camera.orthoTop =  0+50;
+        camera.orthoBottom = 0-50;
+
+        const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0));
+        light.diffuse = new BABYLON.Color3(1,1,1);//这道“颜色”是从上向下的，底部收到100%，侧方收到50%，顶部没有
+        light.specular = new BABYLON.Color3(0,0,0);
+        light.groundColor = new BABYLON.Color3(1,1,1);//这个与第一道正相反
+        //天空盒中隐含的含有对数深度，不能和正交相机配合使用
+        // var skybox = BABYLON.Mesh.CreateBox("skyBox", 1500.0, scene);//尺寸存在极限，设为15000后显示异常
+        // var skyboxMaterial = new BABYLON.StandardMaterial("skyBox", scene);
+        // skyboxMaterial.backFaceCulling = false;
+        // skyboxMaterial.reflectionTexture = new BABYLON.CubeTexture("../ASSETS/IMAGE/SKYBOX/skybox", scene);
+        // skyboxMaterial.reflectionTexture.coordinatesMode = BABYLON.Texture.SKYBOX_MODE;
+        // skyboxMaterial.diffuseColor = new BABYLON.Color3(0, 0, 0);
+        // skyboxMaterial.specularColor = new BABYLON.Color3(0, 0, 0);
+        // skyboxMaterial.disableLighting = true;
+        // skybox.material = skyboxMaterial;
+        // skybox.renderingGroupId = 1;
+        // skybox.isPickable=false;
+        // skybox.infiniteDistance = true;
+
+        return scene;
+
+    }
+
+
+
+    var flag_cfollowm=false;
+    function MyBeforeRender()
+    {
+        scene.registerAfterRender(
+            function() {
+                if(flag_cfollowm)
+                {
+                    camera.position=mesh_camera._position.clone();
+                    camera.rotation=mesh_camera._rotation.clone();
+                }
+            }
+        )
+        engine.runRenderLoop(function () {
+            if (divFps) {
+                // Fps
+                divFps.innerHTML = engine.getFps().toFixed() + " fps";
+            }
+            scene.render();
+        });
+        window.addEventListener("resize", function () {
+            engine.resize();
+            //调整窗口大小后，重新计算正交相机比例
+            requestAnimationFrame(function(){
+                var sizex=engine._gl.drawingBufferWidth;
+                var sizey=engine._gl.drawingBufferHeight;
+                rate_window=sizex/sizey;
+                camera.mode = BABYLON.Camera.ORTHOGRAPHIC_CAMERA;
+                camera.orthoLeft = 0-100*rate_window;
+                camera.orthoRight = 0+100*rate_window;
+                camera.orthoTop =  0+100;
+                camera.orthoBottom = 0-100;
+            })
+        });
+    }
+</script>
+</html>
