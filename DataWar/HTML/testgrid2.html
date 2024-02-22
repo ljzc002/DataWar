@@ -45,6 +45,7 @@
     function webGLStart()
     {
         scene =createScene();
+        initText();
         createGrids();
         MyBeforeRender();
         //scene.debugLayer.show();
@@ -125,7 +126,7 @@
                 var sizex=engine._gl.drawingBufferWidth;
                 var sizey=engine._gl.drawingBufferHeight;
                 rate_window=sizex/sizey;
-                camera.mode = BABYLON.Camera.ORTHOGRAPHIC_CAMERA;
+                //camera.mode = BABYLON.Camera.ORTHOGRAPHIC_CAMERA;
                 camera.orthoLeft = 0-100*rate_window;
                 camera.orthoRight = 0+100*rate_window;
                 camera.orthoTop =  0+100;

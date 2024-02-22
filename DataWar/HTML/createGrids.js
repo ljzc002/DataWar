@@ -79,13 +79,13 @@ function createGrid()
     arr_path.push(createPath(size_grid+size_grid2*Math.cos(Math.PI/6),0.5+size_grid2*Math.sin(Math.PI/6)));
     arr_path.push(createPath(size_grid+size_grid2*Math.cos(Math.PI/3),0.5+size_grid2*Math.sin(Math.PI/3)));
     arr_path.push(createPath(size_grid+size_grid2*Math.cos(Math.PI/2),0.5+size_grid2*Math.sin(Math.PI/2)));
-    var mesh_ribbon=BABYLON.MeshBuilder.CreateRibbon("mesh_origin",{pathArray:arr_path,closePath:false,closeArray:false});
+    var mesh_ribbon=BABYLON.MeshBuilder.CreateRibbon("mesh_ribbon",{pathArray:arr_path,closePath:false,closeArray:false});
     mesh_ribbon.renderingGroupId = 1;
     mesh_ribbon.sideOrientation=BABYLON.Mesh.DOUBLESIDE;
     var mesh_plate1=newland.pathtoplate(arr_path[0],"mesh_plate1",scene,1);//底
     mesh_plate1.renderingGroupId = 1;
     //mesh_ribbon.sideOrientation=BABYLON.Mesh.DOUBLESIDE;
-    var mesh_plate2=newland.pathtoplate(arr_path[arr_path.length-1],"mesh_plate1",scene);//顶
+    var mesh_plate2=newland.pathtoplate(arr_path[arr_path.length-1],"mesh_plate2",scene);//顶
     mesh_plate2.renderingGroupId = 1;
 
     var mesh_ribbona=mesh_ribbon.clone();
@@ -118,7 +118,7 @@ function createGrid()
 
     //这个merge参数会自动删除源网格！！
     var mesh_mergea=BABYLON.Mesh.MergeMeshes([mesh_ribbona, mesh_plate1a,mesh_plate2a], true, false, null, false, true);
-    //mesh_merge.position.x+=20;
+    //mesh_mergea.position.x+=20;
     map_gridclass.grass={mesh:mesh_mergea,color:{r:112,g:146,b:46}};
     mesh_mergea.position.y=-100;
     mesh_mergea.position.z=200;
