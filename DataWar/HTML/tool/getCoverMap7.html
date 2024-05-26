@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>采用自定义结构存储大数据，想办法解决内存溢出问题</title>
+    <style>
+        body{    margin: 0;    padding: 0;    border: 0;    text-align: center;    overflow: hidden;width: 100%;
+            height: 100%;position: fixed;    font-family: verdana,arial,sans-serif;    touch-action: none;
+            -ms-touch-action: none;font-size: 12px;min-width: 600px;}
+    </style>
+</head>
+<body>
+<div id="div_allbase" style="width: 1600px;height: 930px;position: absolute;">
+    <div id="div_banner" style="width: 100%;height: 30px;text-align: left">
+        <button id="btn_load" onclick="loadData()">读取网络数据</button>
+        <button id="btn_cache" onclick="cacheData()">使用本地图片</button>
+        <button id="btn_cook" onclick="cookData()">生成单元格</button>
+    </div>
+    <!--<canvas style="width: 1600px;height:900px;top: 30px;bottom:0px;z-index: 100;background-color: inherit" id="can_mask" height="900" width="1600"></canvas>-->
+    <canvas style="width: 1600px;height:900px;top: 30px;bottom:0px;z-index: 10" id="can_container" height="900" width="1600"></canvas>
+
+    <!--<div id="div_container" style="position:absolute">-->
+
+    <!--</div>-->
+</div>
+
+</body>
+<script>
+    //以数组或对象方式存储的万*万级对象会造成Chrome内存溢出崩溃，所以还是改为分离的小画布？？！！
+    var arr_hb={};
+    //var x1,y1,x2,y2,width,height;
+   // var canvas=document.getElementById("can_mask");//createElement("canvas");
+    var canvas=document.getElementById("can_container");
+    var context=canvas.getContext("2d");
+
+    var lat=64;//纬度
+    var lon=-153;//经度
+    var dis_left=1000;//左侧距离1000km(这是贴合地球表面的弧线距离)
+    var dis_right=1000;//右侧距离1000km
+    var dis_up=1000;//上侧距离1000km
+    var dis_down=1000;//下侧距离1000km
+    var r_earth=6371;//地球平均半径
+    var round_earth=2*Math.PI*r_earth;//地球周长
+    var round_earth_now=round_earth*Math.cos(jd2hd(Math.abs(lat)));
+    var wd_up,wd_down,jd_left,jd_right;
+    var round_earth_up,round_earth_down;
+    var wd_max,wd_min,round_earth_min;
+    var arr_lat=[];
+    var size_grid=50;//六角格的对边距离为50km
+
+    var pos_left_up,pos_right_up,pos_left_down,pos_right_down;
+    var rate_width,rate_height;
+    //暂定使用9.071的lod等级，此时440000的box宽度对应3000的像素宽度
+    var rate=440/3;
+    var data_huge=[];
+    //window.onload=
+    var flag_usecache=false;
+    function cacheData()
+    {
+        flag_usecache=true;
+        loadData();
+    }
+    async function loadData(){
+
+        if((dis_left+dis_right)>=round_earth_now)
+        {
+            alert("地图的总宽度不能大于这个纬度上的地球周长");
+            return;
+        }
+        wd_up=bllwxs((dis_up/round_earth)*360+lat);
+        if(wd_up>90)
+        {
+            alert("不支持地图的上界越过北极点");
+            return;
+        }
+        wd_down=bllwxs(lat-(dis_down/round_earth)*360);
+        if(wd_down<-90)
+        {
+            alert("不支持地图的下界越过南极点");
+            return;
+        }
+        jd_left=bllwxs(lon-(dis_left/round_earth)*360);
+        jd_right=bllwxs((dis_right/round_earth)*360+lon);
+
+        round_earth_up=round_earth*Math.cos(jd2hd(Math.abs(wd_up)));
+        round_earth_down=round_earth*Math.cos(jd2hd(Math.abs(wd_down)));
+        if((dis_left+dis_right)>=round_earth_up||(dis_left+dis_right)>=round_earth_down)
+        {
+            alert("地图的总宽度不能大于上边界或下边界的地球周长");
+            return;
+        }
+
+        pos_left_up=await getPos(jd_left,wd_up);//
+        pos_right_up=await getPos(jd_right,wd_up);//
+        pos_right_down=await getPos(jd_right,wd_down);//
+        pos_left_down=await getPos(jd_left,wd_down);//
+        var pos1,pos2;//左下，右上
+        if(round_earth_up>round_earth_down)
+        {
+            pos1={x:pos_left_down.x,y:pos_left_down.y};
+            pos2={x:pos_right_down.x,y:pos_right_up.y};
+            round_earth_min=round_earth_down;
+        }
+        else
+        {
+            pos1={x:pos_left_up.x,y:pos_left_down.y};
+            pos2={x:pos_right_up.x,y:pos_right_up.y};
+            round_earth_min=round_earth_up;
+        }
+
+
+        var width=Math.floor((pos2.x-pos1.x)/rate);
+        var height=Math.floor((pos2.y-pos1.y)/rate);
+        can_huge.width=width;
+        can_huge.height=height;
+        //context_huge=can_huge.getContext("2d");
+        // for(var i=0;i<height;i++)
+        // {
+        //     var line=[];
+        //     for(var j=0;j<width;j++)
+        //     {
+        //         line.push([0,0,0]);
+        //     }
+        //     data_huge.push(line);
+        // }
+        rate_width=canvas.width/width;
+        rate_height=canvas.height/height;
+
+        var size_part=3000*rate;
+        var part_x=Math.floor((pos2.x-pos1.x)/size_part);
+        var part_y=Math.floor((pos2.y-pos1.y)/size_part);
+        //单元格遮罩和canvas的y轴方向相反！！
+        for(var i=0;i<part_x;i++)//对于每一列
+        {
+            for(var j=0;j<part_y;j++)
+            {
+                await getCover(pos1.x+size_part*i,pos1.y+size_part*j,pos1.x+size_part*(i+1),pos1.y+size_part*(j+1)
+                    ,3000,3000,i,j)
+            }
+            //对于这一列的最后一行
+            await getCover(pos1.x+size_part*i,pos1.y+size_part*part_y,pos1.x+size_part*(i+1),pos2.y
+                ,3000,(pos2.y-pos1.y)%size_part/rate,i,part_y)
+        }
+        for(var j=0;j<part_y;j++)
+        {
+            await getCover(pos1.x+size_part*part_x,pos1.y+size_part*j,pos2.x,pos1.y+size_part*(j+1)
+                ,(pos2.x-pos1.x)%size_part/rate,3000,part_x,j)
+        }
+        await getCover(pos1.x+size_part*part_x,pos1.y+size_part*part_y,pos2.x,pos2.y
+            ,(pos2.x-pos1.x)%size_part/rate,(pos2.y-pos1.y)%size_part/rate,part_x,part_y)
+
+        //var rate_wd=round_earth_up/round_earth_down;
+        //arr_lat.push({lat:})
+        await updateAreaLine();
+
+        //接下来再基于arr_lat进行卷积计算
+
+        requestAnimationFrame(function(){
+            console.log("执行完毕");
+            //console.log(can_huge.toDataURL())//这个方法只能返回空data
+            //data_huge=context_huge.getImageData(0,0,can_huge.width,can_huge.height)
+            //console.log(context_huge.getImageData(0,0,can_huge.width,can_huge.height));
+            // 但这个方法可以返回真值！但这个返回的对象不可被转为JSON，报错数组超长！！
+            //然而其返回值的buffer中全为0！！！！-》不可用，需编写自定义数据结构
+        })
+    }
+    function bllwxs(number)//保留两位小数
+    {
+        return Math.round(number*100)/100;
+    }
+    //根据上下界的地球周长在遮罩canvas中描绘选区范围
+    var part_lat,size_lat,part_lon;
+    async function updateAreaLine()
+    {
+        return new Promise(async (resolve, reject) => {
+            //var context=canvas.getContext("2d");
+            context.fillStyle="rgba(0,0,0,0)";
+            context.fillRect(0,0,canvas.width,canvas.height);
+            context.fillStyle="blue";
+            context.strokeStyle="blue";
+            var wid_can=canvas.width;//900
+            var pos_last_left,pos_last_right;
+            part_lat=(Math.floor((dis_up+dis_down)/size_grid))*2;
+            size_lat=(wd_down-wd_up)/part_lat;
+            //part_lon=(Math.floor((dis_left+dis_right)/(size_grid*1.5)))*2;
+            for(var i=0;i<=part_lat;i++)
+            {
+                if(i==0)
+                {
+                    var wid_offset=wid_can*(1-round_earth_min/round_earth_up)/2;
+                    pos_last_left={x:wid_offset,y:0};//canvas中的位置
+                    pos_last_right={x:wid_can-wid_offset,y:0};//这里的坐标叠加rate_width和rate之后就是pix中的坐标了
+                    //取地图图层中的位置
+                    //var pos_temp=await getPos(0,wd_up);//
+                    //var dis_y=
+                    arr_lat.push({pos_left:pos_last_left,pos_right:pos_last_right,lat:wd_up,round:round_earth_up})
+                }
+                else{
+                    if(i<part_lat)
+                    {
+                        var lat_temp=bllwxs(wd_up+i*size_lat);
+                        var round_earth_temp=round_earth*Math.cos(jd2hd(Math.abs(lat_temp)));
+                        var pos_temp=await getPos(0,lat_temp);
+                        var dis_y=((pos_left_up.y-pos_temp.y)/rate)*rate_height;
+
+                        var wid_offset=wid_can*(1-round_earth_min/round_earth_temp)/2;
+                        var pos_temp_left={x:wid_offset,y:dis_y};
+                        var pos_temp_right={x:wid_can-wid_offset,y:dis_y};
+                        arr_lat.push({pos_left:pos_temp_left,pos_right:pos_temp_right,lat:lat_temp,round:round_earth_temp})
+
+                        context.beginPath();
+                        context.moveTo(pos_last_left.x,pos_last_left.y);
+                        context.lineTo(pos_temp_left.x,pos_temp_left.y);
+                        context.stroke();
+                        context.closePath();
+                        context.beginPath();
+                        context.moveTo(pos_last_right.x,pos_last_right.y);
+                        context.lineTo(pos_temp_right.x,pos_temp_right.y);
+                        context.stroke();
+                        context.closePath();
+                        pos_last_left=pos_temp_left;
+                        pos_last_right=pos_temp_right;
+                    }
+                    else
+                    {
+                        var wid_offset=wid_can*(1-round_earth_min/round_earth_down)/2;
+                        var pos_temp_left={x:wid_offset,y:canvas.height};
+                        var pos_temp_right={x:wid_can-wid_offset,y:canvas.height};
+                        arr_lat.push({pos_left:pos_temp_left,pos_right:pos_temp_right,lat:lat_temp,round:round_earth_temp})
+
+                        context.beginPath();
+                        context.moveTo(pos_last_left.x,pos_last_left.y);
+                        context.lineTo(pos_temp_left.x,pos_temp_left.y);
+                        context.stroke();
+                        context.closePath();
+                        context.beginPath();
+                        context.moveTo(pos_last_right.x,pos_last_right.y);
+                        context.lineTo(pos_temp_right.x,pos_temp_right.y);
+                        context.stroke();
+                        context.closePath();
+                    }
+                }
+            }
+            resolve();
+        })
+    }
+    var can_huge=document.createElement("canvas");//不实际渲染的canvas对象能否突破大小限制？/
+    var context_huge;
+    async function getCover(x1,y1,x2,y2,width,height,i,j)
+    {
+        return new Promise((resolve, reject) => {
+            var str_url;
+            if(!flag_usecache)
+            {
+                str_url=`https://ic.imagery1.arcgis.com/arcgis/rest/services/Sentinel2_10m_LandCover/ImageServer/exportImage?f=image&bbox=${x1}%2C${y1}%2C${x2}%2C${y2}&bboxSR=102100&imageSR=102100&size=${width}%2C${height}&format=jpgpng&mosaicRule=%7B%22ascending%22%3Atrue%2C%22mosaicMethod%22%3A%22esriMosaicAttribute%22%2C%22mosaicOperation%22%3A%22MT_FIRST%22%2C%22sortField%22%3A%22Year%22%2C%22sortValue%22%3A%222050%22%7D&renderingRule=%7B%22rasterFunction%22%3A%22Cartographic%20Renderer%20-%20Legend%20and%20Attribute%20Table%22%7D&time=1704023999000`;
+            }
+            else
+            {
+                str_url="../../ASSETS/CACHE/tile_"+i+"_"+j+".png";
+            }
+            let img=new Image();//document.createElement("img");
+            img.src=str_url;
+            img.onload=function() {//在图片加载完毕后才可以在canvas里绘制
+                context.drawImage(img, i*3000*rate_width, canvas.height-j*3000*rate_height-height*rate_height
+                    ,width*rate_width,height*rate_height);//用于预览的画布
+               // context_huge.drawImage(img, i*3000, can_huge.height-j*3000-height
+               //     ,width,height);
+
+                width=Math.floor(width);
+                height=Math.floor(height);
+                //var offset_x=i*3000;
+                //var offset_y=can_huge.height-j*3000-height;
+                var can_temp=document.createElement("canvas");
+                can_temp.width=width;
+                can_temp.height=height;
+                var context_temp=can_temp.getContext("2d");
+                context_temp.drawImage(img, 0, 0);
+                arr_hb[i+"_"+j]={context:context_temp,canvas:can_temp,i:i,j:j}//i是x轴方向的块索引，j是y轴方向的块索引
+                // var data_temp=context_temp.getImageData(0,0,width,height).data;
+                // var len=data_temp.length;
+                // for(var k=0;k<len;k+=4)
+                // {
+                //     var k2=Math.floor(k/4);
+                //     var x=k2%width+offset_x;
+                //     var y=Math.floor(k2/width)+offset_y;
+                //     //data_huge用行列方式存储？
+                //     // if(!data_huge[y])
+                //     // {
+                //     //     data_huge[y]=[];
+                //     // }
+                //     var r=data_temp[k];
+                //     var g=data_temp[k+1];
+                //     var b=data_temp[k+2];
+                //     var a=data_temp[k+3];
+                //     if(r==255&&g==255&&b==255)
+                //     {
+                //         r=26;
+                //         g=91;
+                //         b=171;
+                //     }
+                //     data_huge[y][x]=[r,g,b];//这种存储方式会导致内存溢出？！（4GB时溢出）
+                // }
+
+
+                if(!flag_usecache)//如果未使用缓存图片，则把新加载的图片保存下来
+                {
+                    var dataUrl=can_temp.toDataURL();
+                    var a=document.createElement("a");
+                    let event = new MouseEvent("click"); // 创建一个单击事件
+                    a.download = "tile_"+i+"_"+j+".png"; // 设置图片名称
+                    a.href = dataUrl; // 将生成的URL设置为a.href属性
+                    a.dispatchEvent(event); // 触发a的单击事件
+                }
+                //context_huge.putImageData(data_temp,i*3000,can_huge.height-j*3000-height);
+                console.log(i+"-"+j+"-"+width+"-"+height);
+                resolve();
+            }
+        })
+    }
+    async function getPos(lon,lat)
+    {
+        return new Promise((resolve, reject) => {
+            var data_old=JSON.parse(localStorage.getItem("data_old"));
+
+            if(data_old&&data_old[lon+"-"+lat])
+            {
+                var pos_old=data_old[lon+"-"+lat];
+                console.log("cache_"+lon+"-"+lat);
+                resolve({x: pos_old.x, y: pos_old.y});
+            }
+            else
+            {
+                var str_url = `https://ic.imagery1.arcgis.com/arcgis/rest/services/Sentinel2_10m_LandCover/ImageServer/identify?f=json&renderingRule=%7B%22rasterFunction%22%3A%22Cartographic+Renderer+-+Legend+and+Attribute+Table%22%7D&mosaicRule=%7B%22ascending%22%3Atrue%2C%22mosaicMethod%22%3A%22esriMosaicAttribute%22%2C%22sortValue%22%3Anull%2C%22where%22%3A%22%28Year+%3D+2023%29%22%7D&geometry=%7B%22spatialReference%22%3A%7B%22wkid%22%3A4326%7D%2C%22x%22%3A${lon}%2C%22y%22%3A${lat}%7D&geometryType=esriGeometryPoint&returnGeometry=false&returnCatalogItems=false`;
+                var xhr = new XMLHttpRequest();
+                xhr.open("GET", str_url);
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState == 4) {
+                        if (xhr.status == 200) {
+                            var json_res = xhr.responseText;
+                            console.log("getPos_"+lon+"-"+lat)
+                            var obj_res = JSON.parse(json_res);
+                            var location = obj_res.location;
+                            xhr.abort();
+                            var pos_new={x: location.x, y: location.y};
+                            var data_old=JSON.parse(localStorage.getItem("data_old"));
+                            if(!data_old)
+                            {
+                                data_old={};
+                            }
+                            data_old[lon+"-"+lat]=pos_new;
+                            localStorage.setItem("data_old",JSON.stringify(data_old));
+                            resolve(pos_new);
+                        }
+                    }
+                }
+                xhr.send();
+            }
+
+        })
+    }
+    function jd2hd(jd)
+    {
+        jd=Math.abs(jd);
+        return (jd/180)*Math.PI;
+    }
+    //地图文件大，不好保存，所以直接在这里处理了！！！！
+    function cookData()
+    {
+        var len=arr_lat.length;
+        var dis_width=dis_left+dis_right;
+        //var part_lon=Math.floor((dis_width-size_grid*0.5)/(size_grid*1.5));
+        var arr1=[];
+        for(var i=1;i<len;i++)//对于每一条采样纬线
+        {
+            console.log(i);
+            var obj_lat=arr_lat[i];
+            var y=obj_lat.pos_left.y/rate_height;
+            var width=(obj_lat.pos_right.x-obj_lat.pos_left.x)/rate_width;
+            var x0=obj_lat.pos_left.x/rate_width;
+            var sizeGridONThisLat=Math.floor((size_grid/dis_width)*width);
+            //var d=(round_earth_min/obj_lat.round)*(can_huge.width/part_lon);//卷积核的直径
+            var r=sizeGridONThisLat*Math.sin(Math.PI/3);
+            var d=r*2;
+            var dx=d*rate_width;
+            var dy=d*rate_height;
+            var arr2=[];
+            var step=3*sizeGridONThisLat;
+            var offset=(width%step)/2;
+            for(var j=offset+((i)%2)*(1.5*sizeGridONThisLat);j<width-(2*sizeGridONThisLat);j+=(step))
+            {
+                var xo=x0+j+(sizeGridONThisLat-r);//用于提取数据的左上点
+                var yo=y-r;
+                var data=myGetImageData2(xo,yo,d,d);
+
+                var key=maxLike(data);
+                arr2.push(key);
+
+                context.beginPath();
+                context.moveTo(xo*rate_width,yo*rate_height);
+                context.lineTo(xo*rate_width+dx,yo*rate_height+dy);
+                context.stroke();
+                context.closePath();
+            }
+            arr1.push(arr2);
+        }
+        console.log(JSON.stringify(arr1));
+        var arr_res=transpositionArr(arr1);
+        console.log(JSON.stringify(arr_res));
+    }
+    //将表示六角格的数组转置，这一操作不具有普遍性！
+    function transpositionArr(arr)
+    {
+        var len=arr.length;
+        var arr_res=[];
+        var len_res=arr[0].length+arr[1].length;
+        for(var i=0;i<len_res;i++)
+        {
+            arr_res.push([]);
+        }
+        for(var i=0;i<len;i++)//纬线的检索是从索引1开始的！！！！，所以第一行未缩进！！！！《-修改了
+        {
+            var line=arr[i];
+            var len2=line.length;
+            if(i%2==0)//仍然让第一行缩进
+            {
+                for(var j=0;j<len2;j++)
+                {
+                    var jb=j*2+1
+                    var str=line[j];
+                    arr_res[jb].push(str);
+                }
+            }
+            else
+            {
+                for(var j=0;j<len2;j++)
+                {
+                    var jb=j*2;
+                    var str=line[j];
+                    arr_res[jb].push(str);
+                }
+            }
+        }
+        return arr_res;
+    }
+    function myGetImageData(x,y,width,height)
+    {
+        x=Math.floor(x);
+        y=Math.floor(y);
+        width=Math.floor(width);
+        height=Math.floor(height);
+        var arr_res=[];
+        for(var i=0;i<height;i++)
+        {
+            var line=data_huge[y+i];
+            for(var j=0;j<width;j++)
+            {
+                var arr=line[x+j];
+                arr_res.push({r:arr[0],g:arr[1],b:arr[2]});
+            }
+        }
+        return arr_res
+    }
+    function myGetImageData2(x,y,width,height)
+    {
+        try{
+            var i=Math.floor(x/3000);
+            var j=Math.floor(can_huge.height/3000)-Math.floor(y/3000);
+            x=Math.floor(x);
+            y=Math.floor(y);
+            width=Math.floor(width);
+            height=Math.floor(height);
+            var obj_hb=arr_hb[i+"_"+j];
+            var int_x1=(x+width);
+            var int_x2=(i*3000+obj_hb.canvas.width);
+            var int_y1=(y+height);
+            var int_y2=(Math.floor(y/3000)*3000+obj_hb.canvas.height)
+            if(int_x1<=int_x2&&int_y1<=int_y2)
+            {//卷积核在单个画布内
+                var data=obj_hb.context.getImageData(x%3000,y%3000,width,height);
+                return [data]
+            }
+            else
+            {
+                if(int_x1>int_x2&&int_y1<=int_y2)
+                {
+                    var data1=obj_hb.context.getImageData(x%3000,y%3000,(width-(int_x1-int_x2)),height);
+                    var data2=arr_hb[(i+1)+"_"+j].context.getImageData(0,y%3000,(int_x1-int_x2),height);
+                    console.log("向右扩展");
+                    return [data1,data2];
+                }
+                else if(int_x1<=int_x2&&int_y1>int_y2)
+                {
+                    var data1=obj_hb.context.getImageData(x%3000,y%3000,width,(height-(int_y1-int_y2)));
+                    var data2=arr_hb[i+"_"+(j-1)].context.getImageData(x%3000,0,width,(int_y1-int_y2));
+                    console.log("向下扩展");
+                    return [data1,data2];
+                }
+                else
+                {
+                    var data1=obj_hb.context.getImageData(x%3000,y%3000,(width-(int_x1-int_x2)),(height-(int_y1-int_y2)));
+                    var data2=arr_hb[(i+1)+"_"+j].context.getImageData(0,y%3000,(int_x1-int_x2),(height-(int_y1-int_y2)));
+                    var data3=arr_hb[i+"_"+(j-1)].context.getImageData(x%3000,0,(width-(int_x1-int_x2)),(int_y1-int_y2));
+                    var data4=arr_hb[(i+1)+"_"+(j-1)].context.getImageData(0,0,(int_x1-int_x2),(int_y1-int_y2));
+                    console.log("向右下扩展");
+                    return [data1,data2,data3,data4];
+                }
+            }
+        }
+        catch(e)
+        {
+            console.error(e);
+            return [];
+        }
+
+    }
+    var map_landtype={};
+    map_landtype.Water={color:{r:26,g:91,b:171},key:"Water"};//包括海河湖、季节性河道
+    map_landtype.Trees={color:{r:53,g:130,b:33},key:"Trees"};
+    map_landtype.FloodedVegetation={color:{r:135,g:209,b:158},key:"FloodedVegetation"};//淹没植被，湿地，季节性淹没
+    map_landtype.Crops={color:{r:255,g:219,b:92},key:"Crops"};//农作物，不到树木高度
+    map_landtype.BuiltArea={color:{r:237,g:2,b:42},key:"BuiltArea"};
+    map_landtype.BareGround={color:{r:237,g:233,b:228},key:"BareGround"};//荒原（没有植被的沙石）
+    map_landtype.SnowIce={color:{r:242,g:250,b:255},key:"SnowIce"};
+    map_landtype.Clouds={color:{r:200,g:200,b:200},key:"Clouds"};//因为被云遮挡而未知
+    map_landtype.Rangeland={color:{r:26,g:91,b:171},key:"Rangeland"};//放牧地
+    function maxLike(arr_imgdata){
+        for(var key in map_landtype)
+        {
+            var landtype=map_landtype[key];
+            landtype.count=0;
+        }
+        var len0=arr_imgdata.length;
+        for(var i0=0;i0<len0;i0++)
+        {
+            var data=arr_imgdata[i0].data;
+            var len=data.length;
+            for(var i=0;i<len;i+=4)
+            {
+                var r=data[i];
+                var g=data[i+1];
+                var b=data[i+2];
+                var a=data[i+3];
+                if(r==255&&g==255&&b==255)//将数据空洞变为Water
+                {
+                    r=26;
+                    g=91;
+                    b=171;
+                }
+                for(var key in map_landtype)
+                {
+                    var landtype=map_landtype[key];
+                    if(landtype.color.r==r&&landtype.color.g==g&&landtype.color.b==b)
+                    {
+                        landtype.count++;
+                        break;
+                    }
+                }
+            }
+        }
+        var max_type={count:-1};
+        for(var key in map_landtype)
+        {
+            var landtype=map_landtype[key];
+            if(landtype.count>max_type.count)
+            {
+                max_type=landtype;
+            }
+        }
+        return max_type.key;
+    }
+</script>
+</html>
