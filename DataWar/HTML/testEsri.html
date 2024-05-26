@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>测试GIS数据源</title>
+    <link href="../CSS/simple.css" rel="stylesheet">
+    <script src="../JS/LIB6/babylon.js"></script>
+    <script src="../JS/LIB6/babylon.inspector.bundle.js"></script>
+    <script src="../JS/LIB6/earcut.min.js"></script>
+    <script src="../JS/LIB/meshwriter_stsong.js"></script>
+    <script src="../JS/LIB6/babylon.gui.min.js"></script>
+    <script src="../JS/LIB/newland.js"></script>
+    <script src="GuiControl.js"></script>
+    <script src="ChessControl.js"></script>
+    <script src="CmdControl.js"></script>
+    <script src="MyMaterialEsri.js"></script>
+    <script src="createGridsEsri.js"></script>
+    <script src="map/pixdata.js"></script>
+    <script src="createChesses2.js"></script>
+</head>
+<body>
+    <canvas id="renderCanvas" touch-action="none"></canvas>
+    <div id="fps"></div>
+</body>
+<script>
+    const canvas = document.getElementById("renderCanvas"); // Get the canvas element 获取画布标签
+    const engine = new BABYLON.Engine(canvas, true); // Generate the BABYLON 3D engine 建立BABYLON 3D引擎
+    var divFps = document.getElementById("fps");
+
+    var scene=null;
+    var advancedTexture=null;
+    var can_temp=document.createElement("canvas");
+    can_temp.width=800;
+    can_temp.height=800;
+    var context_temp=can_temp.getContext("2d");
+    context_temp.font="bold 100px monospace";
+    var plan_temp,Writer;
+
+    window.onload=beforewebGL;
+    function beforewebGL()
+    {
+        webGLStart();
+
+    }
+
+    var camera,camera0,mesh_camera,rate_window,pos_camera0,rot_camera0,global_panel2,global_panel_text;
+    var map_mat={};
+
+    function webGLStart()
+    {
+        scene =createScene();
+        InitMouse();
+        initText();
+        createGridsFromMap();
+        prepareChesses();
+        //createSomeChesses();
+        MyBeforeRender();
+        //scene.debugLayer.show();
+    }
+    const createScene =  () => {
+        scene = new BABYLON.Scene(engine);
+        Writer = BABYLON.MeshWriter(scene, {scale:1,defaultFont:"stsong"});
+        initGuiControl();
+        initMaterial();
+        //initMaterial2();
+        mesh_camera=new BABYLON.Mesh("mesh_camera",scene);
+        //人类的实际视界是一个弧面，但opengl的虚拟视界是平截锥体！！！！-》所以视界边缘的单元格并不会因为距离远而显得小
+        var size=size_chess*2+size_chess2;
+        camera = new BABYLON.UniversalCamera("camera1", new BABYLON.Vector3(size*part_chessx/2, 100, -size*part_chessy/2), scene);
+        camera.rotation.x=Math.PI/2//*0.31;
+        scene.activeCamera=camera;
+        camera.attachControl(canvas, true);
+        camera.minz=0.01;
+        camera.speed=5;
+        camera0=camera;
+
+        pos_camera0=camera.position.clone();
+        rot_camera0=camera.rotation.clone();
+        var sizex=engine._gl.drawingBufferWidth;
+        var sizey=engine._gl.drawingBufferHeight;
+        rate_window=sizex/sizey;
+        //camera.mode = BABYLON.Camera.ORTHOGRAPHIC_CAMERA;
+        camera.orthoLeft = 0-50*rate_window;
+        camera.orthoRight = 0+50*rate_window;
+        camera.orthoTop =  0+50;
+        camera.orthoBottom = 0-50;
+
+        const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0));
+        light.diffuse = new BABYLON.Color3(1,1,1);//这道“颜色”是从上向下的，底部收到100%，侧方收到50%，顶部没有
+        light.specular = new BABYLON.Color3(0,0,0);
+        light.groundColor = new BABYLON.Color3(1,1,1);//这个与第一道正相反
+
+        return scene;
+
+    }
+
+
+    var flag_cfollowm=false;
+    function MyBeforeRender()
+    {
+        scene.registerAfterRender(
+            function() {
+                if(flag_cfollowm)
+                {
+                    camera.position=mesh_camera._position.clone();
+                    camera.rotation=mesh_camera._rotation.clone();
+                }
+            }
+        )
+        engine.runRenderLoop(function () {
+            if (divFps) {
+                // Fps
+                divFps.innerHTML = engine.getFps().toFixed() + " fps";
+            }
+            scene.render();
+        });
+    }
+</script>
+</html>
