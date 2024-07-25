@@ -33,8 +33,8 @@
     var canvas=document.getElementById("can_container");
     var context=canvas.getContext("2d");
 
-    var lat=64;//纬度
-    var lon=-153;//经度
+    var lat=24//64;//纬度
+    var lon=79//-153;//经度
     var dis_left=1000;//左侧距离1000km(这是贴合地球表面的弧线距离)
     var dis_right=1000;//右侧距离1000km
     var dis_up=1000;//上侧距离1000km
@@ -180,9 +180,10 @@
             context.strokeStyle="blue";
             var wid_can=canvas.width;//900
             var pos_last_left,pos_last_right;
-            part_lat=(Math.floor((dis_up+dis_down)/size_grid))*2;
+            part_lat=(Math.floor((dis_up+dis_down)/size_grid))*2;//因横向六角格的堆叠特点，虽然最终显示40行单元格，但采样时是按80行采样！每行错开半行的高度
             size_lat=(wd_down-wd_up)/part_lat;
             //part_lon=(Math.floor((dis_left+dis_right)/(size_grid*1.5)))*2;
+            part_lon=Math.floor(part_lat*((dis_right+dis_left)/(dis_up+dis_down))*1.5);
             for(var i=0;i<=part_lat;i++)
             {
                 if(i==0)
@@ -256,7 +257,8 @@
             }
             else
             {
-                str_url="../../ASSETS/CACHE/tile_"+i+"_"+j+".png";
+                str_url="../../ASSETS/CACHE/tile_"+i+"_"+j+" (1).png";
+                //str_url="../../ASSETS/CACHE/tile_"+i+"_"+j+".png";
             }
             let img=new Image();//document.createElement("img");
             img.src=str_url;
@@ -273,7 +275,7 @@
                 var can_temp=document.createElement("canvas");
                 can_temp.width=width;
                 can_temp.height=height;
-                var context_temp=can_temp.getContext("2d");
+                var context_temp=can_temp.getContext("2d",{ willReadFrequently: true });
                 context_temp.drawImage(img, 0, 0);
                 arr_hb[i+"_"+j]={context:context_temp,canvas:can_temp,i:i,j:j}//i是x轴方向的块索引，j是y轴方向的块索引
                 // var data_temp=context_temp.getImageData(0,0,width,height).data;
@@ -321,7 +323,7 @@
     {
         return new Promise((resolve, reject) => {
             var data_old=JSON.parse(localStorage.getItem("data_old"));
-
+//此处的data_old基于经纬度进行存储，是可以在多个场景之间公用的！
             if(data_old&&data_old[lon+"-"+lat])
             {
                 var pos_old=data_old[lon+"-"+lat];
@@ -370,7 +372,7 @@
         var dis_width=dis_left+dis_right;
         //var part_lon=Math.floor((dis_width-size_grid*0.5)/(size_grid*1.5));
         var arr1=[];
-        for(var i=1;i<len;i++)//对于每一条采样纬线
+        for(var i=1;i<len-1;i++)//对于每一条采样纬线
         {
             console.log(i);
             var obj_lat=arr_lat[i];
@@ -380,24 +382,26 @@
             var sizeGridONThisLat=Math.floor((size_grid/dis_width)*width);
             //var d=(round_earth_min/obj_lat.round)*(can_huge.width/part_lon);//卷积核的直径
             var r=sizeGridONThisLat*Math.sin(Math.PI/3);
-            var d=r*2;
+            var d=r*2;//采样框的边长
             var dx=d*rate_width;
             var dy=d*rate_height;
             var arr2=[];
-            var step=3*sizeGridONThisLat;
+            var rate_buchang=(5/9);
+            var step=3*sizeGridONThisLat*rate_buchang;//20240724缩小步长，以进行更多的横向采样，解决地图变窄的问题
+            //这个补偿值只施加给横轴！！！！
             var offset=(width%step)/2;
-            for(var j=offset+((i)%2)*(1.5*sizeGridONThisLat);j<width-(2*sizeGridONThisLat);j+=(step))
+            for(var j=offset+((i)%2)*(step/2);j<width-(2*sizeGridONThisLat*rate_buchang);j+=(step))
             {
-                var xo=x0+j+(sizeGridONThisLat-r);//用于提取数据的左上点
+                var xo=x0+j+(sizeGridONThisLat-r)*rate_buchang;//用于提取数据的左上点
                 var yo=y-r;
-                var data=myGetImageData2(xo,yo,d,d);
+                var data=myGetImageData2(xo,yo,d*rate_buchang,d);
 
                 var key=maxLike(data);
                 arr2.push(key);
 
                 context.beginPath();
                 context.moveTo(xo*rate_width,yo*rate_height);
-                context.lineTo(xo*rate_width+dx,yo*rate_height+dy);
+                context.lineTo(xo*rate_width+dx*rate_buchang,yo*rate_height+dy);
                 context.stroke();
                 context.closePath();
             }
@@ -464,7 +468,7 @@
     {
         try{
             var i=Math.floor(x/3000);
-            var j=Math.floor(can_huge.height/3000)-Math.floor(y/3000);
+            var j=Math.floor((can_huge.height-y)/3000);//Math.floor(can_huge.height/3000)-Math.floor(y/3000);
             x=Math.floor(x);
             y=Math.floor(y);
             width=Math.floor(width);
@@ -484,23 +488,24 @@
                 if(int_x1>int_x2&&int_y1<=int_y2)
                 {
                     var data1=obj_hb.context.getImageData(x%3000,y%3000,(width-(int_x1-int_x2)),height);
-                    var data2=arr_hb[(i+1)+"_"+j].context.getImageData(0,y%3000,(int_x1-int_x2),height);
+                    //有的时候会扩展到已有的画布信息之外，此时返回空数组
+                    var data2=arr_hb[(i+1)+"_"+j]?arr_hb[(i+1)+"_"+j].context.getImageData(0,y%3000,(int_x1-int_x2),height):{data:[]};
                     console.log("向右扩展");
                     return [data1,data2];
                 }
                 else if(int_x1<=int_x2&&int_y1>int_y2)
                 {
                     var data1=obj_hb.context.getImageData(x%3000,y%3000,width,(height-(int_y1-int_y2)));
-                    var data2=arr_hb[i+"_"+(j-1)].context.getImageData(x%3000,0,width,(int_y1-int_y2));
+                    var data2=arr_hb[i+"_"+(j-1)]?arr_hb[i+"_"+(j-1)].context.getImageData(x%3000,0,width,(int_y1-int_y2)):{data:[]};
                     console.log("向下扩展");
                     return [data1,data2];
                 }
                 else
                 {
                     var data1=obj_hb.context.getImageData(x%3000,y%3000,(width-(int_x1-int_x2)),(height-(int_y1-int_y2)));
-                    var data2=arr_hb[(i+1)+"_"+j].context.getImageData(0,y%3000,(int_x1-int_x2),(height-(int_y1-int_y2)));
-                    var data3=arr_hb[i+"_"+(j-1)].context.getImageData(x%3000,0,(width-(int_x1-int_x2)),(int_y1-int_y2));
-                    var data4=arr_hb[(i+1)+"_"+(j-1)].context.getImageData(0,0,(int_x1-int_x2),(int_y1-int_y2));
+                    var data2=arr_hb[(i+1)+"_"+j]?arr_hb[(i+1)+"_"+j].context.getImageData(0,y%3000,(int_x1-int_x2),(height-(int_y1-int_y2))):{data:[]};
+                    var data3=arr_hb[i+"_"+(j-1)]?arr_hb[i+"_"+(j-1)].context.getImageData(x%3000,0,(width-(int_x1-int_x2)),(int_y1-int_y2)):{data:[]};
+                    var data4=arr_hb[(i+1)+"_"+(j-1)]?arr_hb[(i+1)+"_"+(j-1)].context.getImageData(0,0,(int_x1-int_x2),(int_y1-int_y2)):{data:[]};
                     console.log("向右下扩展");
                     return [data1,data2,data3,data4];
                 }
@@ -551,7 +556,14 @@
                     var landtype=map_landtype[key];
                     if(landtype.color.r==r&&landtype.color.g==g&&landtype.color.b==b)
                     {
-                        landtype.count++;
+                        if(key=="BuiltArea")//让建筑物的权值更大
+                        {
+                            landtype.count+=2;
+                        }
+                        else
+                        {
+                            landtype.count++;
+                        }
                         break;
                     }
                 }
