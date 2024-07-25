@@ -116,7 +116,7 @@ function onKeyUp(event)
     {
         obj_keystate[key.toLowerCase()] = 0;
     }
-    if(key=="Tab")
+    if(key=="v")
     {
         if(switchText)
         {
