@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>用来显示yd的random结果，生成精细的处理意见，并传回主页面</title>
+    <link href="../CSS/simple.css" rel="stylesheet">
+</head>
+<body>
+<div id="all_base">
+    <div id="div_color">
+        <div id="div_ap"><div>攻_</div></div>
+        <div id="div_dp"><div>防_</div></div>
+    </div>
+    <div id="div_table">
+        <div class="div_x_l"><!--每一行-->
+            <div class="div_y_s"></div>
+            <div class="div_y_s">1</div>
+            <div class="div_y_s">2</div>
+            <div class="div_y_s">3</div>
+            <div class="div_y_s">4</div>
+            <div class="div_y_s">5</div>
+            <div class="div_y_s">6</div>
+        </div>
+        <div class="div_x_l">
+            <div class="div_y_s">300/30</div>
+            <div class="div_y_s">-30|=|-30</div>
+            <div class="div_y_s">0|》|-30</div>
+            <div class="div_y_s">0|》|-30</div>
+            <div class="div_y_s">0|》|-30</div>
+            <div class="div_y_s">0|》|-30</div>
+            <div class="div_y_s">0|》|-30</div>
+        </div>
+        <div class="div_x_l">
+            <div class="div_y_s">150/30</div>
+            <div class="div_y_s">-40|=|-20</div>
+            <div class="div_y_s">-40|》|-20</div>
+            <div class="div_y_s">-30|》|-20</div>
+            <div class="div_y_s">-10|》|-20</div>
+            <div class="div_y_s">-10|》|-30</div>
+            <div class="div_y_s">0|》|-30</div>
+        </div>
+        <div class="div_x_l">
+            <div class="div_y_s">60/30</div>
+            <div class="div_y_s">-30|=|-10</div>
+            <div class="div_y_s">-30|=|-20</div>
+            <div class="div_y_s">-30|》|-20</div>
+            <div class="div_y_s">-20|》|-20</div>
+            <div class="div_y_s">-20|》|-30</div>
+            <div class="div_y_s">0|》|-30</div>
+        </div>
+        <div class="div_x_l">
+            <div class="div_y_s">30/30</div>
+            <div class="div_y_s">-30|=|-10</div>
+            <div class="div_y_s">-20|=|-10</div>
+            <div class="div_y_s">-10|=|-10</div>
+            <div class="div_y_s">-10|》|-10</div>
+            <div class="div_y_s">-10|》|-20</div>
+            <div class="div_y_s">0|》|-20</div>
+        </div>
+        <div class="div_x_l">
+            <div class="div_y_s">15/30</div>
+            <div class="div_y_s">-15|=|0</div>
+            <div class="div_y_s">-15|=|-10</div>
+            <div class="div_y_s">-10|=|-10</div>
+            <div class="div_y_s">-10|=|-15</div>
+            <div class="div_y_s">-5|》|-15</div>
+            <div class="div_y_s">-5|》|-30</div>
+        </div>
+        <div class="div_x_l">
+            <div class="div_y_s">6/30</div>
+            <div class="div_y_s">-6|=|0</div>
+            <div class="div_y_s">-6|=|-2</div>
+            <div class="div_y_s">-4|=|-2</div>
+            <div class="div_y_s">-4|=|4</div>
+            <div class="div_y_s">-4|=|-6</div>
+            <div class="div_y_s">-4|》|-8</div>
+        </div>
+        <div class="div_x_l">
+            <div class="div_y_s">3/30</div>
+            <div class="div_y_s">-3|=|0</div>
+            <div class="div_y_s">-3|=|0</div>
+            <div class="div_y_s">-3|=|0</div>
+            <div class="div_y_s">-3|=|0</div>
+            <div class="div_y_s">-3|=|0</div>
+            <div class="div_y_s">-3|》|-3</div>
+        </div>
+    </div>
+
+</div>
+</body>
+<script>
+    var arr1=[];
+    var arr2=[];
+    var div_ap=document.getElementById("div_ap");
+    var div_dp=document.getElementById("div_dp");
+    var div_table=document.getElementById("div_table");
+    window.onload=function(){
+
+    }
+    var arr_rate=[];
+    function queryTable()
+    {
+        var str_hash=window.location.hash.substr(1);
+        var arr=str_hash.split("@");
+        var count_hh=parseInt(arr[0]);
+        var str_ide=arr[1];
+        var sum_ap=parseInt(arr[2]);
+        var sum_dp=parseInt(arr[3]);
+        var random=parseInt(arr[4]);
+
+        var len=arr1.length;
+        var sum_ap=0;
+        for(var i=0;i<len;i++)
+        {
+            var chess=arr1[i];
+            var div=document.createElement("div");
+            div.innerHTML=chess.index+"_"+chess.type+"_"+chess.level+"_"+chess.ap+"_"+chess.dp+"_"+chess.ydl+"："
+            div_ap.appendChild(div);
+            sum_ap+=chess.ap;
+        }
+        div_ap.innerHTML=div_ap.innerHTML+sum_ap;
+        var len=arr2.length;
+        var sum_dp=0;
+        for(var i=0;i<len;i++)
+        {
+            var chess=arr2[i];
+            var div=document.createElement("div");
+            div.innerHTML=chess.index+"_"+chess.type+"_"+chess.level+"_"+chess.ap+"_"+chess.dp+"_"+chess.ydl+"："
+            div_dp.appendChild(div);
+            sum_dp+=chess.dp;
+        }
+        div_dp.innerHTML=div_dp.innerHTML+sum_dp;
+        var rate_ad=sum_ap/sum_dp;
+        //将对应的比例横条突出显示
+        var arr_div=div_table.getElementsByTagName("div");
+        var arr_div=div_table.childNodes;
+        var len=arr_div.length;
+        var div_rate=null;
+        if(div_rate>1)
+        {
+            for(var i=1;i<=4;i++)
+            {
+                var div=arr_div[i];//由大到小
+                var arr2=div.getElementsByTagName("div");
+                if(rate_ad>=eval(arr2[0].innerHTML))
+                {
+                    div_rate=div;
+                    break;
+                }
+            }
+        }
+        else if(div_rate==1)
+        {
+            div_rate=arr_div[4];
+        }
+        else if(div_rate<1)
+        {
+            for(var i=5;i<=7;i++)
+            {
+                var div=arr_div[i];//由大到小
+                var arr2=div.getElementsByTagName("div");
+                if(rate_ad>eval(arr2[0].innerHTML))
+                {
+                    div_rate=arr_div[i-1];
+                    break;
+                }
+            }
+            if(!div_rate)
+            {
+                div_rate=arr_div[7];
+            }
+        }
+        div_rate.style.border="2px solid gray";
+        var str_rate=div_rate;
+        var div_random=div_rate.getElementsByTagName("div")[random];
+        div_random.style.backgroundColor="gray";
+        var str_random=div_random.innerHTML;
+        var res=randomResult(str_rate,str_random);
+    }
+    function randomResult(str_rate,str_random)
+    {
+        10.1
+    }
+</script>
+</html>
